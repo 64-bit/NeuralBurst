@@ -1,0 +1,1 @@
+Currently a educational project to learn more about neural nets and machine learning.
