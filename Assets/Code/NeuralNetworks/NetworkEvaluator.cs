@@ -58,8 +58,8 @@ namespace NeuralBurst
         private JobHandle EvaluateInternal(NativeArray<float> inputData, NativeArray<float> outputArray)
         {
             //Copy to input layer
-            InputLayer.Values.CopyFrom(inputData);
-            var jobHandle = inputData.CopyToJob(InputLayer.Values, _lastDependentJobHandle);
+            InputLayer.OutputActivation.CopyFrom(inputData);
+            var jobHandle = inputData.CopyToJob(InputLayer.OutputActivation, _lastDependentJobHandle);
 
             for (int i = 1; i < _layers.Count; i++)
             {
@@ -70,7 +70,7 @@ namespace NeuralBurst
             _lastDependentJobHandle = jobHandle;
 
             //Copy to output
-            return OutputLayer.Values.CopyToJob(outputArray, jobHandle);
+            return OutputLayer.OutputActivation.CopyToJob(outputArray, jobHandle);
         }
 
         private JobHandle EvaluateLayer(int layerIndex, JobHandle lastJobHandle)
@@ -80,27 +80,45 @@ namespace NeuralBurst
 
             var evaluator = NeuronEvaluators.GetEvaluatorForNeuronType(currentLayer.TargetLayer.NeuronType);
 
-            evaluator.SetArguments(lastLayer.Values, currentLayer.Values, currentLayer.TargetLayer.Weights);
+            evaluator.SetArguments(lastLayer.OutputActivation, currentLayer.OutputActivation, currentLayer.WeightedInput, currentLayer.TargetLayer.Weights, currentLayer.TargetLayer.Biases);
 
             return evaluator.Schedule(lastJobHandle);
+        }
+
+        //Oh Boy
+        public JobHandle GradientDescentBackpropigate(NativeArray<float> inputData, NativeArray<float> expectedOutput)
+        {
+            var resultArray = new NativeArray<float>(OutputLayer.Size, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+
+            var feedforwardHandle = Evaluate(inputData, resultArray);
+
+
+
+            throw new NotImplementedException();
         }
 
         private class EvaluatorLayer
         {
             public readonly int Size;
-            public NetworkLayer TargetLayer;
-            public NativeArray<float> Values;
+            public readonly NetworkLayer TargetLayer;
+
+            public NativeArray<float> OutputActivation;
+            public NativeArray<float> WeightedInput;
+
+            public NativeArray<float> Error;
+            public NativeArray<float> WeightGradients;
 
             public EvaluatorLayer(NetworkLayer targetLayer)
             {
                 Size = targetLayer.Size;
                 TargetLayer = targetLayer;
-                Values = new NativeArray<float>(targetLayer.Size, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+                OutputActivation = new NativeArray<float>(targetLayer.Size, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+                WeightedInput = new NativeArray<float>(targetLayer.Size, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
             }
 
             public void Dispose()
             {
-                Values.Dispose();
+                OutputActivation.Dispose();
             }
         }
 

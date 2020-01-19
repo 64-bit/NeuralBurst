@@ -29,6 +29,19 @@ namespace NeuralBurst
     public enum ENeruonType
     {
         Linear,
-        RectifiedLinear
+        RectifiedLinear,
+        Sigmoid
+    }
+
+    public static class ENeuronTypeExtensions
+    {
+        public static bool HasBiases(this ENeruonType type)
+        {
+            if (type == ENeruonType.Sigmoid)
+            {
+                return true;
+            }
+            return false;
+        }
     }
 }

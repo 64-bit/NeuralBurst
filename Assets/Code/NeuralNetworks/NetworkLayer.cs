@@ -17,6 +17,12 @@ namespace NeuralBurst
             private set;
         }
 
+        public NativeArray<float> Biases
+        {
+            get;
+            private set;
+        }
+
         public int PreviousLayerSize
         {
             get; protected set;
@@ -65,6 +71,11 @@ namespace NeuralBurst
             PreviousLayerSize = previousLayer.NeuronCount;
             int weightCount = layerParamaters.NeuronCount * previousLayer.NeuronCount;
             Weights = new NativeArray<float>(weightCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+
+            if (layerParamaters.NeuronType.HasBiases())
+            {
+                Biases = new NativeArray<float>(Size, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            }
         }
 
         public NetworkLayer(LayerParamaters layerParamaters)

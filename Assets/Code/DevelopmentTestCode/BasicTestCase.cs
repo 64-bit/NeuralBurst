@@ -15,7 +15,17 @@ namespace NeuralBurst.Dev
 
         void Start()
         {
+            var testValues = new[] {0.0f, 1.0f, 1.5f, 2.0f, 3.0f, 15.5f};
+            var softmax = MathTesting.Softmax(testValues);
 
+            string result = "";
+
+            foreach (var f in softmax)
+            {
+                result += $"{f} -";
+            }
+
+            Debug.Log(result);
         }
     }
 }
