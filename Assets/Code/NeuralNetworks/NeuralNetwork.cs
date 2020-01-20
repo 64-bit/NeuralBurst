@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using NeuralNetworks.Utilities;
 using Unity.Collections;
 
 namespace NeuralBurst
@@ -26,6 +27,8 @@ namespace NeuralBurst
         {
             //Ensure we can construct a nerual network from this description
             ValidateLayers(description);
+
+            ConstructLayers(description);
         }
 
         //Destroy all allocated native resources
@@ -95,6 +98,16 @@ namespace NeuralBurst
             if (description.Layers[description.Layers.Count - 1].LayerType != ELayerType.Output)
             {
                 throw new ArgumentException("The last layer of a neural network must be a output layer", nameof(description));
+            }
+        }
+
+        public void InitNetworkWithRandomValues(float min, float max, uint seed = 1337)
+        {
+            for(int i = 1; i < _layers.Length;i++)
+            {
+                var layer = _layers[i];
+                NativeArrayUtilities.InitNativeArrayRandomly(layer.Weights, min, max, seed++).Complete();
+                NativeArrayUtilities.InitNativeArrayRandomly(layer.Biases, min, max, seed++).Complete();
             }
         }
 

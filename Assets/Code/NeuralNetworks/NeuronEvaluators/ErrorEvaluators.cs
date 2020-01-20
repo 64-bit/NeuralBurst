@@ -13,11 +13,14 @@ namespace NeuralBurst
     {
 
 
-        [BurstCompile]
+        //[BurstCompile]
         public struct QuadraticSigmoidOutputErrorEvaluator : IJobParallelFor
         {
+            [ReadOnly]
             public NativeArray<float> Expected;
+            [ReadOnly]
             public NativeArray<float> Actuall;
+            [ReadOnly]
             public NativeArray<float> WeightedActivation;
 
             public NativeArray<float> ErrorOut;
@@ -33,8 +36,11 @@ namespace NeuralBurst
         [BurstCompile]
         public struct SigmoidLayerErrorEvaluator : IJobParallelFor
         {
+            [ReadOnly]
             public NativeArray<float> NextLayerWeights;
+            [ReadOnly]
             public NativeArray<float> NextLayerError;
+            [ReadOnly]
             public NativeArray<float> WeightedActivation;
 
             public NativeArray<float> ErrorOutput;
@@ -64,7 +70,9 @@ namespace NeuralBurst
         [BurstCompile]
         public struct AccumulateGradientOverWeight : IJobParallelFor
         {
+            [ReadOnly]
             public NativeArray<float> PreviousActivation;
+            [ReadOnly]
             public NativeArray<float> NextError;
 
             //ForEach over this
@@ -73,11 +81,14 @@ namespace NeuralBurst
 
             public void Execute(int index)
             {
-                int srcIndex = index / NextError.Length;// for size 50 in next error, first 50 weights point from everything in previous activation to this node
-                int dstIndex = index % NextError.Length;
+                int nextIndex = index / PreviousActivation.Length;// for size 50 in next error, first 50 weights point from everything in previous activation to this node
+                int previousIndex = index % PreviousActivation.Length;
+
+                //int srcIndex = index % NextError.Length;// for size 50 in next error, first 50 weights point from everything in previous activation to this node
+                //int dstIndex = index / NextError.Length;
 
                 //TODO:Accumulate
-                WeightGradients[index] = PreviousActivation[srcIndex] * NextError[dstIndex];
+                WeightGradients[index] = PreviousActivation[previousIndex] * NextError[nextIndex];
             }
         }
 
@@ -87,13 +98,14 @@ namespace NeuralBurst
             public int TestCount;
             public float LearningRate;
 
-            public NativeArray<float> LayerWeights;
-
+            [ReadOnly]
             public NativeArray<float> WeightGradients;
+
+            public NativeArray<float> LayerWeights;
 
             public void Execute(int index)
             {
-                LayerWeights[index] -= LearningRate * (WeightGradients[index] / TestCount);
+                LayerWeights[index] = LayerWeights[index] - LearningRate * (WeightGradients[index]);
             }
         }
 
@@ -103,12 +115,15 @@ namespace NeuralBurst
             public int TestCount;
             public float LearningRate;
 
-            public NativeArray<float> LayerBiases;
+            [ReadOnly]
             public NativeArray<float> LayerErrors;
+
+            public NativeArray<float> LayerBiases;
+
 
             public void Execute(int index)
             {
-                LayerBiases[index] -= LearningRate * (LayerErrors[index] / TestCount);
+                LayerBiases[index] = LayerBiases[index] -  LearningRate * (LayerErrors[index]);
             }
         }
     }

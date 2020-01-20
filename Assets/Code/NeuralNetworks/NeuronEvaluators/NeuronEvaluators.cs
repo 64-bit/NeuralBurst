@@ -44,10 +44,13 @@ namespace Assets.Code.NeuralNetworks.NeuronEvaluators
         [BurstCompile]
         public struct LinearNeuronEvaluator : INeuronEvaluator
         {
+            [ReadOnly]
             private NativeArray<float> _sourceValues;
+            [ReadOnly]
+            private NativeArray<float> _weights;
+
             private NativeArray<float> _destinationActivation;
             private NativeArray<float> _destinationWeightedInputs;
-            private NativeArray<float> _weights;
 
             public void Execute(int index)
             {
@@ -81,10 +84,14 @@ namespace Assets.Code.NeuralNetworks.NeuronEvaluators
         [BurstCompile]
         public struct RectifiedLinearNeuronEvaluator : INeuronEvaluator
         {
+            [ReadOnly]
             private NativeArray<float> _sourceValues;
+            [ReadOnly]
+            private NativeArray<float> _weights;
+
             private NativeArray<float> _destinationActivation;
             private NativeArray<float> _destinationWeightedInputs;
-            private NativeArray<float> _weights;
+
 
             public void Execute(int index)
             {
@@ -118,11 +125,15 @@ namespace Assets.Code.NeuralNetworks.NeuronEvaluators
         [BurstCompile]
         public struct SigmoidNeuronEvaluator : INeuronEvaluator
         {
+            [ReadOnly]
             private NativeArray<float> _sourceValues;
+            [ReadOnly]
+            private NativeArray<float> _weights;
+            [ReadOnly]
+            private NativeArray<float> _biases;
+
             private NativeArray<float> _destinationActivation;
             private NativeArray<float> _destinationWeightedInputs;
-            private NativeArray<float> _weights;
-            private NativeArray<float> _biases;
 
             public void Execute(int index)
             {
@@ -134,12 +145,12 @@ namespace Assets.Code.NeuralNetworks.NeuronEvaluators
 
                 for (int i = 0; i < _sourceValues.Length; i++)
                 {
-                    weightedInput += _sourceValues[i] * _weights[startWeight + i] - bias;
+                    weightedInput += _sourceValues[i] * _weights[startWeight + i];
                 }
 
                 _destinationWeightedInputs[index] = weightedInput;
 
-                var finalActivation = 1.0f / (1.0f + (math.exp(-weightedInput)));
+                var finalActivation = 1.0f / (1.0f + (math.exp(-weightedInput - bias)));
                 _destinationActivation[index] = finalActivation;
             }
 

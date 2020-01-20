@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
+using Unity.Mathematics;
 
 namespace NeuralNetworks.Utilities
 {
@@ -131,6 +132,39 @@ namespace NeuralNetworks.Utilities
             public void Execute()
             {
                 Src.CopyTo(Dst);
+            }
+        }
+
+        public static JobHandle InitNativeArrayRandomly(NativeArray<float> array, float min, float max, uint seed)
+        {
+            var setRandomJob = new SetArrayRandomlyJob()
+            {
+                Array = array,
+                Min = min,
+                Max = max,
+                Seed = seed
+            };
+
+            return setRandomJob.Schedule();
+        }
+
+        [BurstCompile]
+        private struct SetArrayRandomlyJob : IJob
+        {
+            public uint Seed;
+            public float Min;
+            public float Max;
+
+            public NativeArray<float> Array;
+
+            public void Execute()
+            {
+                Unity.Mathematics.Random rand = new Unity.Mathematics.Random(Seed);
+
+                for (int i = 0; i < Array.Length; i++)
+                {
+                    Array[i] = rand.NextFloat(Min, Max);
+                }
             }
         }
 
