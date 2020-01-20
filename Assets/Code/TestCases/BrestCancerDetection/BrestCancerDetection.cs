@@ -43,13 +43,19 @@ namespace NeuralBurst.TestCases
                     new LayerParamaters()
                     {
                         LayerType = ELayerType.Input,
-                        NeuronCount = 9,
+                        NeuronCount = InputAttributeCount,
                         NeuronType = ENeruonType.Linear
                     },
                     new LayerParamaters()
                     {
                         LayerType = ELayerType.Hidden,
-                        NeuronCount = 30,
+                        NeuronCount = 64,
+                        NeuronType = ENeruonType.Sigmoid
+                    },
+                    new LayerParamaters()
+                    {
+                        LayerType = ELayerType.Hidden,
+                        NeuronCount = 8,
                         NeuronType = ENeruonType.Sigmoid
                     },
                     new LayerParamaters()
@@ -66,11 +72,12 @@ namespace NeuralBurst.TestCases
 
             var networkEvaluator = new NetworkEvaluator(neuralNetwork);
 
-            var testSetArray = new NativeArray<float>(9, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            var testSetArray = new NativeArray<float>(InputAttributeCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
             var testResultArray = new NativeArray<float>(1, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
 
-            float rollingError = 0.0f;
+            var tempResult = new NativeArray<float>(1, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
 
+            //Learn over a number of iterations
             for (int epoch = 0; epoch < Epochs; epoch++)
             {
                 //Select training subset
@@ -81,26 +88,18 @@ namespace NeuralBurst.TestCases
                 testResultArray[0] = ExpectedResults[index];
 
                 //Forward test
-
-                var tempResult = new NativeArray<float>(1,Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
-
                 networkEvaluator.Evaluate(testSetArray, tempResult).Complete();
 
                 Debug.Log($"Error:{Math.Abs(tempResult[0] - testResultArray[0])} -- Result:{tempResult[0]} -- Expected:{testResultArray[0]}");
-                tempResult.Dispose();
 
-                //Evolve test
-                var jobHandle = networkEvaluator.GradientDescentBackpropigate(testSetArray, testResultArray, out float errorSum);
-
+                //Evolve network
+                var jobHandle = networkEvaluator.GradientDescentBackpropigate(testSetArray, testResultArray, out _);
                 jobHandle.Complete();
-
-                rollingError = 0.95f * rollingError + 0.05f * errorSum;
-
-                //Print results
 
                 yield return null;
             }
 
+            tempResult.Dispose();
             testSetArray.Dispose();
             testResultArray.Dispose();
         }

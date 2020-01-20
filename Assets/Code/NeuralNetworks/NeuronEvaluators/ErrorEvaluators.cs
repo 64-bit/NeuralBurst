@@ -13,7 +13,7 @@ namespace NeuralBurst
     {
 
 
-        //[BurstCompile]
+        [BurstCompile]
         public struct QuadraticSigmoidOutputErrorEvaluator : IJobParallelFor
         {
             [ReadOnly]

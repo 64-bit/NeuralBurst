@@ -148,9 +148,10 @@ namespace Assets.Code.NeuralNetworks.NeuronEvaluators
                     weightedInput += _sourceValues[i] * _weights[startWeight + i];
                 }
 
+                weightedInput += bias;
                 _destinationWeightedInputs[index] = weightedInput;
 
-                var finalActivation = 1.0f / (1.0f + (math.exp(-weightedInput - bias)));
+                var finalActivation = 1.0f / (1.0f + (math.exp(-weightedInput)));
                 _destinationActivation[index] = finalActivation;
             }
 

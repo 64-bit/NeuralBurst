@@ -7,6 +7,7 @@ using Assets.Code.NeuralNetworks.NeuronEvaluators;
 using NeuralNetworks.Utilities;
 using Unity.Collections;
 using Unity.Jobs;
+using UnityEngine.Profiling;
 
 namespace NeuralBurst
 {
@@ -39,6 +40,7 @@ namespace NeuralBurst
 
         public JobHandle Evaluate(NativeArray<float> inputData, NativeArray<float> outputArray)
         {
+            Profiler.BeginSample("NetworkEvaluator::Evaluate");
             var inputLayer = _layers[0];
             var outputLayer = _layers[_layers.Count - 1];
 
@@ -52,7 +54,10 @@ namespace NeuralBurst
                 throw new ArgumentException();//TODO:
             }
 
-            return EvaluateInternal(inputData, outputArray);
+            var result =  EvaluateInternal(inputData, outputArray);
+            JobHandle.ScheduleBatchedJobs();
+            Profiler.EndSample();
+            return result;
         }
 
         private JobHandle EvaluateInternal(NativeArray<float> inputData, NativeArray<float> outputArray)
@@ -83,7 +88,7 @@ namespace NeuralBurst
             evaluator.SetArguments(lastLayer.OutputActivation, currentLayer.OutputActivation, currentLayer.WeightedInput, currentLayer.TargetLayer.Weights, currentLayer.TargetLayer.Biases);
 
             var handle =  evaluator.Schedule(lastJobHandle);
-            handle.Complete();
+            //handle.Complete();
 
             return handle;
         }
@@ -91,10 +96,10 @@ namespace NeuralBurst
         //Oh Boy
         public JobHandle GradientDescentBackpropigate(NativeArray<float> inputData, NativeArray<float> expectedOutput, out float errorSum)
         {
+            Profiler.BeginSample("NetworkEvaluator::GradientDescentBackpropigate");
             var resultArray = new NativeArray<float>(OutputLayer.Size, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
 
             var feedforwardHandle = Evaluate(inputData, resultArray);
-
             //Now we need to use all the jobs created before to evaluate this.
 
             //Compute output error
@@ -108,7 +113,7 @@ namespace NeuralBurst
             };
 
             var outputErrorHandle = computeOutputErrorJob.Schedule(OutputLayer.Error.Length, 4, feedforwardHandle);
-            outputErrorHandle.Complete();
+            //outputErrorHandle.Complete();
             //Perform backpropigation
             JobHandle backpropigationHandle = outputErrorHandle;
 
@@ -129,7 +134,7 @@ namespace NeuralBurst
 
                     backpropigationHandle =
                         backPropigateLayerJob.Schedule(targetLayer.Error.Length, 4, backpropigationHandle);
-                    backpropigationHandle.Complete();
+                    //backpropigationHandle.Complete();
                 }
 
                 var accumulateGradientOverWeightJob = new ErrorEvaluators.AccumulateGradientOverWeight()
@@ -144,8 +149,10 @@ namespace NeuralBurst
                     accumulateGradientOverWeightJob.Schedule(nextLayer.WeightGradients.Length, 4,
                         backpropigationHandle);
 
-                backpropigationHandle.Complete();
+                //backpropigationHandle.Complete();
             }
+
+            JobHandle.ScheduleBatchedJobs();
 
             //Update weights (all layers but first)
             JobHandle updateNetworkJobHandle = backpropigationHandle;
@@ -157,7 +164,7 @@ namespace NeuralBurst
                 var applyGradientsToWeightsJob = new ErrorEvaluators.ApplyGradientToLayerWeights()
                 {
                     TestCount = 1,
-                    LearningRate = 0.05f,
+                    LearningRate = 0.1f,
                     WeightGradients = layer.WeightGradients,
                     LayerWeights = layer.TargetLayer.Weights
                 };
@@ -165,12 +172,12 @@ namespace NeuralBurst
                 updateNetworkJobHandle =
                     applyGradientsToWeightsJob.Schedule(layer.TargetLayer.Weights.Length, 4, updateNetworkJobHandle);
 
-                updateNetworkJobHandle.Complete();
+                //updateNetworkJobHandle.Complete();
 
                 var applyGradientsToBiasesJob = new ErrorEvaluators.ApplyGradientToLayerBiases()
                 {
                     TestCount = 1,
-                    LearningRate = 0.05f,
+                    LearningRate = 0.1f,
                     LayerBiases = layer.TargetLayer.Biases,
                     LayerErrors = layer.Error
                 };
@@ -178,7 +185,7 @@ namespace NeuralBurst
                 updateNetworkJobHandle =
                     applyGradientsToBiasesJob.Schedule(layer.TargetLayer.Biases.Length, 4, updateNetworkJobHandle);
 
-                updateNetworkJobHandle.Complete();
+                //updateNetworkJobHandle.Complete();
                 int x = 1;
             }
 
@@ -194,9 +201,9 @@ namespace NeuralBurst
                 errorSum += Math.Abs(OutputLayer.OutputActivation[i] - expectedOutput[i]);
             }
 
-            updateNetworkJobHandle.Complete();
             resultArray.Dispose();
 
+            Profiler.EndSample();
             return updateNetworkJobHandle;
         }
 
