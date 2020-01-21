@@ -16,17 +16,17 @@ namespace NeuralBurst.TestCases
     /// </summary>
     public class BrestCancerDetection : MonoBehaviour
     {
-        const int InputAttributeCount = 9;
+        public const int InputAttributeCount = 9;
 
-        public int Epochs = 500;
+        public int Epochs = 10;
 
         public TextAsset Dataset;
 
-        public JobHandle LastDependentJobHandle;
+        //public int DatasetSize;
+        ///public NativeArray<float> InputAttributes;
+        //public NativeArray<float> ExpectedResults;
 
-        public int DatasetSize;
-        public NativeArray<float> InputAttributes;
-        public NativeArray<float> ExpectedResults;
+        private BrestCancerDataset _dataset;
 
         void Start()
         {
@@ -52,10 +52,10 @@ namespace NeuralBurst.TestCases
                         NeuronCount = 64,
                         NeuronType = ENeruonType.Sigmoid
                     },
-                    new LayerParamaters()
+                   new LayerParamaters()
                     {
                         LayerType = ELayerType.Hidden,
-                        NeuronCount = 8,
+                        NeuronCount = 16,
                         NeuronType = ENeruonType.Sigmoid
                     },
                     new LayerParamaters()
@@ -72,98 +72,92 @@ namespace NeuralBurst.TestCases
 
             var networkEvaluator = new NetworkEvaluator(neuralNetwork);
 
-            var testSetArray = new NativeArray<float>(InputAttributeCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-            var testResultArray = new NativeArray<float>(1, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            //var testSetArray = new NativeArray<float>(InputAttributeCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            //var testResultArray = new NativeArray<float>(1, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
 
             var tempResult = new NativeArray<float>(1, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+
+            //Test inital accuracy
+
+            TestInitialAccuracy(networkEvaluator, tempResult);
 
             //Learn over a number of iterations
             for (int epoch = 0; epoch < Epochs; epoch++)
             {
-                //Select training subset
-                int index = epoch % ExpectedResults.Length;
-                //Upload to input array
-                NativeArray<float>.Copy(InputAttributes, index * InputAttributeCount, testSetArray,0, InputAttributeCount);
-                //Upload to output array
-                testResultArray[0] = ExpectedResults[index];
+
+                //For each epoch, perform training
+
+                for (int tc = 0; tc < _dataset.TrainingSetSize; tc++)
+                {
+                    _dataset.GetTrainingCase(tc, out var trainingInput, out var trainingResult);
+
+                    //Evolve network
+                    var jobHandle = networkEvaluator.GradientDescentBackpropigate(trainingInput, trainingResult, out _);
+                    jobHandle.Complete();
+                }
+
+                float totalError = 0.0f;
+                int totalCorrect = 0;
+
+                for (int i = 0; i < _dataset.TestingSetSize; i++)
+                {
+                    _dataset.GetTestCase(i, out var trainingInput, out var trainingResult);
+                    networkEvaluator.Evaluate(trainingInput, tempResult).Complete();
+
+                    var error = Math.Abs(tempResult[0] - trainingResult[0, 0]);
+                    bool wasCorrect = error < 0.5f;
+                    totalCorrect += wasCorrect ? 1 : 0;
+                    totalError += error;
+                }
+
+                float averageError = totalError / (float) _dataset.TestingSetSize;
+                float accuracy = (float) totalCorrect / (float) _dataset.TestingSetSize;
 
                 //Forward test
-                networkEvaluator.Evaluate(testSetArray, tempResult).Complete();
-
-                Debug.Log($"Error:{Math.Abs(tempResult[0] - testResultArray[0])} -- Result:{tempResult[0]} -- Expected:{testResultArray[0]}");
-
-                //Evolve network
-                var jobHandle = networkEvaluator.GradientDescentBackpropigate(testSetArray, testResultArray, out _);
-                jobHandle.Complete();
+                Debug.Log($"Epoch {epoch}: Accuracy:{accuracy:P2}  Average Error:{averageError:F4}");
 
                 yield return null;
             }
 
             tempResult.Dispose();
-            testSetArray.Dispose();
-            testResultArray.Dispose();
+        }
+
+        private void TestInitialAccuracy(NetworkEvaluator networkEvaluator, NativeArray<float> tempResult)
+        {
+            float totalError = 0.0f;
+            int totalCorrect = 0;
+
+            for (int i = 0; i < _dataset.TestingSetSize; i++)
+            {
+                _dataset.GetTestCase(i, out var trainingInput, out var trainingResult);
+                networkEvaluator.Evaluate(trainingInput, tempResult).Complete();
+
+                var error = Math.Abs(tempResult[0] - trainingResult[0, 0]);
+                bool wasCorrect = error < 0.5f;
+                totalCorrect += wasCorrect ? 1 : 0;
+                totalError += error;
+            }
+
+            float averageError = totalError / (float) _dataset.TestingSetSize;
+            float accuracy = (float) totalCorrect / (float) _dataset.TestingSetSize;
+
+            //Forward test
+            Debug.Log($"Initial: Accuracy:{accuracy:P2}  Average Error:{averageError:F4}");
+        }
+
+        private void ProcessEpoch()
+        {
+
         }
 
         private void ParseDataset()
         {
-            //Dataset is in CSV format, with integers numers
-            //First index is a sample ID, we can discard that
-            //Last index is the class, 2 for benign, 4 for malignant
-
-
-            var resultLines = Dataset.text.Split(new[] {'\n'}, StringSplitOptions.RemoveEmptyEntries);
-            DatasetSize = resultLines.Length;
-
-            InputAttributes = new NativeArray<float>(resultLines.Length * InputAttributeCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-            ExpectedResults = new NativeArray<float>(resultLines.Length, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-
-            int inputArrayPtr = 0;
-            int resultArrayPtr = 0;
-
-            foreach (var line in resultLines)
-            {
-                if (line.Length < 10)
-                {
-                    continue;
-                }
-
-                var lineAttributes = line.Split(',').Select((x)=>
-                {
-                    if (x == "?")
-                    {
-                        return 5.0f;
-                    }
-                    try
-                    {
-                        return (float) Int32.Parse(x);
-                    }
-                    catch (Exception e)
-                    {
-                        Debug.Log($"{x}::{e}");
-                    }
-
-                    return 0.0f;
-                }
-                    
-                    ).ToArray();
-
-              
-                //Skip first
-                for (int i = 1; i < 10; i++)
-                {
-                    InputAttributes[inputArrayPtr++] = lineAttributes[i];
-                }
-                ExpectedResults[resultArrayPtr++] = Math.Abs(lineAttributes[10] - 2.0f) < 0.0001f ? 0.0f : 1.0f;
-            }
-
-
+            _dataset = new BrestCancerDataset(Dataset.text);
         }
 
         void OnDestroy()
         {
-            LastDependentJobHandle.Complete();
-            InputAttributes.Dispose();
-            ExpectedResults.Dispose();
+
         }
     }
 }

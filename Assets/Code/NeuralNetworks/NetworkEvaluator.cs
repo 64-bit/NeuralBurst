@@ -16,6 +16,8 @@ namespace NeuralBurst
     /// </summary>
     public class NetworkEvaluator
     {
+        public float LearningRate = 0.01f;
+
         private readonly List<EvaluatorLayer> _layers = new List<EvaluatorLayer>();
 
         private EvaluatorLayer InputLayer => _layers[0];
@@ -38,13 +40,13 @@ namespace NeuralBurst
             }
         }
 
-        public JobHandle Evaluate(NativeArray<float> inputData, NativeArray<float> outputArray)
+        public JobHandle Evaluate(TestDataSlice inputData, NativeArray<float> outputArray)
         {
             Profiler.BeginSample("NetworkEvaluator::Evaluate");
             var inputLayer = _layers[0];
             var outputLayer = _layers[_layers.Count - 1];
 
-            if (inputData.Length != inputLayer.Size)
+            if (inputData.ElementsPerSet != inputLayer.Size)
             {
                 throw new ArgumentException();//TODO:
             }
@@ -60,12 +62,15 @@ namespace NeuralBurst
             return result;
         }
 
-        private JobHandle EvaluateInternal(NativeArray<float> inputData, NativeArray<float> outputArray)
+        private JobHandle EvaluateInternal(TestDataSlice inputData, NativeArray<float> outputArray)
         {
             //Copy to input layer
-            InputLayer.OutputActivation.CopyFrom(inputData);
-            var jobHandle = inputData.CopyToJob(InputLayer.OutputActivation, _lastDependentJobHandle);
+            inputData.Data.CopyTo(InputLayer.OutputActivation); //TODO:Re-Work this to take slices
 
+            //InputLayer.OutputActivation.CopyFrom(inputData);
+            //var jobHandle = inputData.CopyToJob(InputLayer.OutputActivation, _lastDependentJobHandle);
+            JobHandle jobHandle = default;
+           
             for (int i = 1; i < _layers.Count; i++)
             {
                 //Evaluate layers
@@ -94,7 +99,7 @@ namespace NeuralBurst
         }
 
         //Oh Boy
-        public JobHandle GradientDescentBackpropigate(NativeArray<float> inputData, NativeArray<float> expectedOutput, out float errorSum)
+        public JobHandle GradientDescentBackpropigate(TestDataSlice inputData, TestDataSlice expectedOutput, out float errorSum)
         {
             Profiler.BeginSample("NetworkEvaluator::GradientDescentBackpropigate");
             var resultArray = new NativeArray<float>(OutputLayer.Size, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
@@ -164,7 +169,7 @@ namespace NeuralBurst
                 var applyGradientsToWeightsJob = new ErrorEvaluators.ApplyGradientToLayerWeights()
                 {
                     TestCount = 1,
-                    LearningRate = 0.1f,
+                    LearningRate = LearningRate,
                     WeightGradients = layer.WeightGradients,
                     LayerWeights = layer.TargetLayer.Weights
                 };
@@ -177,7 +182,7 @@ namespace NeuralBurst
                 var applyGradientsToBiasesJob = new ErrorEvaluators.ApplyGradientToLayerBiases()
                 {
                     TestCount = 1,
-                    LearningRate = 0.1f,
+                    LearningRate = LearningRate,
                     LayerBiases = layer.TargetLayer.Biases,
                     LayerErrors = layer.Error
                 };
@@ -198,7 +203,7 @@ namespace NeuralBurst
             {
                // errorSum += OutputLayer.Error[i];
 
-                errorSum += Math.Abs(OutputLayer.OutputActivation[i] - expectedOutput[i]);
+                errorSum += Math.Abs(OutputLayer.OutputActivation[i] - expectedOutput[0,i]);
             }
 
             resultArray.Dispose();

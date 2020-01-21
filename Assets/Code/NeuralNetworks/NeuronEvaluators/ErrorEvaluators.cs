@@ -13,11 +13,11 @@ namespace NeuralBurst
     {
 
 
-        [BurstCompile]
+        [BurstCompile] //TODO:Probably needs to be split, so that the cost function and the layer derivitive from activation are computed seperately, and then multiplied
         public struct QuadraticSigmoidOutputErrorEvaluator : IJobParallelFor
         {
             [ReadOnly]
-            public NativeArray<float> Expected;
+            public TestDataSlice Expected;
             [ReadOnly]
             public NativeArray<float> Actuall;
             [ReadOnly]
@@ -27,7 +27,7 @@ namespace NeuralBurst
 
             public void Execute(int index)
             {
-                float deltaC = Actuall[index] - Expected[index];
+                float deltaC = Actuall[index] - Expected[0, index];
                 float sigmoidPrime = MathOperations.SigmoidPrime(WeightedActivation[index]);
                 ErrorOut[index] = deltaC * sigmoidPrime;
             }
@@ -62,7 +62,7 @@ namespace NeuralBurst
                 //Multiply this by the rate of change of our own activation function
                 float deltaActivation = MathOperations.SigmoidPrime(WeightedActivation[index]);
 
-                //TODO:May need to accumulate this error
+                //TODO:May need to accumulate this error, as it is the gradient we apply to the biases
                 ErrorOutput[index] = backpropigatedError * deltaActivation;
             }
         }
