@@ -118,11 +118,11 @@ namespace NeuralBurst
             {
                 if (i == 0)
                 {
-                    _layers[i] = new NetworkLayer(description.Layers[i]);
+                    _layers[i] = NetworkLayer.ConstructLayer(description.Layers[i]);
                 }
                 else
                 {
-                    _layers[i] = new NetworkLayer(description.Layers[i], description.Layers[i-1]);
+                    _layers[i] = NetworkLayer.ConstructLayer(description.Layers[i], description.Layers[i-1]);
                 }
             }
         }

@@ -9,7 +9,7 @@ using Unity.Jobs;
 
 namespace NeuralBurst
 {
-    public class NetworkLayer
+    public abstract class NetworkLayer //Why not construct this directly, and have this be a virtual class ? 
     {
         public NativeArray<float> Weights
         {
@@ -51,12 +51,27 @@ namespace NeuralBurst
             protected set;
         }
 
-        public NetworkLayer()
+        public abstract JobHandle EvaluateLayer(EvaluatorLayer lastLayerState, EvaluatorLayer currentLayerState, JobHandle jobHandleToWaitOn);
+
+        public abstract JobHandle BackpropigateLayer(EvaluatorLayer currentLayerState, EvaluatorLayer nextLayerState,
+            JobHandle jobHandleToWaitOn);
+
+
+        protected void InitLayerInput(LayerParamaters layerParamaters)
         {
-            
+            if (layerParamaters.LayerType != ELayerType.Input)
+            {
+                throw new InvalidOperationException("This constructor can only be used for input layers");
+            }
+
+            Size = layerParamaters.NeuronCount;
+            NeuronType = layerParamaters.NeuronType;
+            LayerType = layerParamaters.LayerType;
+
+            PreviousLayerSize = -1;
         }
 
-        public NetworkLayer(LayerParamaters layerParamaters, LayerParamaters previousLayer)
+        protected void InitLayer(LayerParamaters layerParamaters, LayerParamaters previousLayer)
         {
             if (layerParamaters.LayerType == ELayerType.Input)
             {
@@ -78,18 +93,26 @@ namespace NeuralBurst
             }
         }
 
-        public NetworkLayer(LayerParamaters layerParamaters)
+        public static NetworkLayer ConstructLayer(LayerParamaters layerParamaters)
         {
-            if (layerParamaters.LayerType != ELayerType.Input)
+            switch (layerParamaters.NeuronType)
             {
-                throw new InvalidOperationException("This constructor can only be used for input layers");
+                case ENeruonType.Sigmoid:
+                    return new SigmoidLayer(layerParamaters);
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
+        }
 
-            Size = layerParamaters.NeuronCount;
-            NeuronType = layerParamaters.NeuronType;
-            LayerType = layerParamaters.LayerType;
-
-            PreviousLayerSize = -1;
+        public static NetworkLayer ConstructLayer(LayerParamaters layerParamaters, LayerParamaters previousLayer)
+        {
+            switch (layerParamaters.NeuronType)
+            {
+                case ENeruonType.Sigmoid:
+                   return new SigmoidLayer(layerParamaters, previousLayer);
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
         }
 
         public void Dispose()

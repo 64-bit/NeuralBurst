@@ -13,7 +13,7 @@ namespace NeuralBurst.TestCases
 
         public BrestCancerDataset(string source, float trainingSetSize = 0.7f)
         {
-            //Dataset is in CSV format, with integers numers
+            //DatasetSource is in CSV format, with integers numers
             //First index is a sample ID, we can discard that
             //Last index is the class, 2 for benign, 4 for malignant
 

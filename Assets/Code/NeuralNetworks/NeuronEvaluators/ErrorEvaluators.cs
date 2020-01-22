@@ -14,6 +14,7 @@ namespace NeuralBurst
 
 
         [BurstCompile] //TODO:Probably needs to be split, so that the cost function and the layer derivitive from activation are computed seperately, and then multiplied
+                       //However it's going to be faster to manually merge the jobs at some point
         public struct QuadraticSigmoidOutputErrorEvaluator : IJobParallelFor
         {
             [ReadOnly]
@@ -33,37 +34,23 @@ namespace NeuralBurst
             }
         }
 
-        [BurstCompile]
-        public struct SigmoidLayerErrorEvaluator : IJobParallelFor
+        [BurstCompile] //TODO:Probably needs to be split, so that the cost function and the layer derivitive from activation are computed seperately, and then multiplied
+        //However it's going to be faster to manually merge the jobs at some point
+        public struct CrossEntropySigmoidOutputErrorEvaluator : IJobParallelFor
         {
             [ReadOnly]
-            public NativeArray<float> NextLayerWeights;
+            public TestDataSlice Expected;
             [ReadOnly]
-            public NativeArray<float> NextLayerError;
+            public NativeArray<float> Actuall;
             [ReadOnly]
             public NativeArray<float> WeightedActivation;
 
-            public NativeArray<float> ErrorOutput;
+            public NativeArray<float> ErrorOut;
 
             public void Execute(int index)
             {
-                //Multiply the error of every single next node by the weight connecting us to them
-                int nextLayerSize = NextLayerError.Length;
-
-                float backpropigatedError = 0.0f;
-                for (int i = 0; i < nextLayerSize; i++)
-                {
-                    float nextNodeError = NextLayerError[i];
-                    float weightToNextNode = NextLayerWeights[index + i * nextLayerSize];
-
-                    backpropigatedError += nextNodeError * weightToNextNode;
-                }
-
-                //Multiply this by the rate of change of our own activation function
-                float deltaActivation = MathOperations.SigmoidPrime(WeightedActivation[index]);
-
-                //TODO:May need to accumulate this error, as it is the gradient we apply to the biases
-                ErrorOutput[index] = backpropigatedError * deltaActivation;
+                float deltaC = Actuall[index] - Expected[0, index];
+                ErrorOut[index] = deltaC;
             }
         }
 

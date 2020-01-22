@@ -25,7 +25,7 @@ namespace Assets.Code.NeuralNetworks.NeuronEvaluators
 
     public static class NeuronEvaluators
     {
-        public static INeuronEvaluator GetEvaluatorForNeuronType(ENeruonType neuronType)
+        public static INeuronEvaluator GetEvaluatorForNeuronType(ENeruonType neuronType) //TODO:Remove entire class
         {
             switch (neuronType)
             {
@@ -35,7 +35,7 @@ namespace Assets.Code.NeuralNetworks.NeuronEvaluators
                 case ENeruonType.RectifiedLinear:
                     return new RectifiedLinearNeuronEvaluator();
                 case ENeruonType.Sigmoid:
-                    return new SigmoidNeuronEvaluator();
+                    throw new NotImplementedException();
                 default:
                     throw new ArgumentOutOfRangeException(nameof(neuronType), neuronType, null);
             }
@@ -122,52 +122,5 @@ namespace Assets.Code.NeuralNetworks.NeuronEvaluators
             }
         }
 
-        [BurstCompile]
-        public struct SigmoidNeuronEvaluator : INeuronEvaluator
-        {
-            [ReadOnly]
-            private NativeArray<float> _sourceValues;
-            [ReadOnly]
-            private NativeArray<float> _weights;
-            [ReadOnly]
-            private NativeArray<float> _biases;
-
-            private NativeArray<float> _destinationActivation;
-            private NativeArray<float> _destinationWeightedInputs;
-
-            public void Execute(int index)
-            {
-                //Weights are indexed with all the weights for a given neruon in order, one weight per pervious layer size
-                var startWeight = index * _sourceValues.Length;
-                var weightedInput = 0.0f;
-
-                var bias = _biases[index];
-
-                for (int i = 0; i < _sourceValues.Length; i++)
-                {
-                    weightedInput += _sourceValues[i] * _weights[startWeight + i];
-                }
-
-                weightedInput += bias;
-                _destinationWeightedInputs[index] = weightedInput;
-
-                var finalActivation = 1.0f / (1.0f + (math.exp(-weightedInput)));
-                _destinationActivation[index] = finalActivation;
-            }
-
-            public void SetArguments(NativeArray<float> sourceValues, NativeArray<float> destinationActivation, NativeArray<float> destinationWeightedInputs, NativeArray<float> weights, NativeArray<float> biases)
-            {
-                _sourceValues = sourceValues;
-                _destinationWeightedInputs = destinationWeightedInputs;
-                _destinationActivation = destinationActivation;
-                _weights = weights;
-                _biases = biases;
-            }
-
-            public JobHandle Schedule(JobHandle lastDependentJobHandle)
-            {
-                return this.Schedule(_destinationActivation.Length, 4, lastDependentJobHandle);
-            }
-        }
     }
 }

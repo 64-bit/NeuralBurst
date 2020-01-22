@@ -16,7 +16,7 @@ namespace NeuralBurst
     /// </summary>
     public class NetworkEvaluator
     {
-        public float LearningRate = 0.01f;
+        public float LearningRate = 0.0015f;
 
         private readonly List<EvaluatorLayer> _layers = new List<EvaluatorLayer>();
 
@@ -88,14 +88,7 @@ namespace NeuralBurst
             var currentLayer = _layers[layerIndex];
             var lastLayer = _layers[layerIndex - 1];
 
-            var evaluator = NeuronEvaluators.GetEvaluatorForNeuronType(currentLayer.TargetLayer.NeuronType);
-
-            evaluator.SetArguments(lastLayer.OutputActivation, currentLayer.OutputActivation, currentLayer.WeightedInput, currentLayer.TargetLayer.Weights, currentLayer.TargetLayer.Biases);
-
-            var handle =  evaluator.Schedule(lastJobHandle);
-            //handle.Complete();
-
-            return handle;
+           return currentLayer.ModelLayer.EvaluateLayer(lastLayer, currentLayer, lastJobHandle);
         }
 
         //Oh Boy
@@ -109,7 +102,15 @@ namespace NeuralBurst
 
             //Compute output error
 
-            var computeOutputErrorJob = new ErrorEvaluators.QuadraticSigmoidOutputErrorEvaluator()
+/*            var computeOutputErrorJob = new ErrorEvaluators.QuadraticSigmoidOutputErrorEvaluator()
+            {
+                Expected = expectedOutput,
+                Actuall = resultArray,
+                WeightedActivation = OutputLayer.WeightedInput,
+                ErrorOut = OutputLayer.Error
+            };*/
+
+            var computeOutputErrorJob = new ErrorEvaluators.CrossEntropySigmoidOutputErrorEvaluator()
             {
                 Expected = expectedOutput,
                 Actuall = resultArray,
@@ -117,7 +118,12 @@ namespace NeuralBurst
                 ErrorOut = OutputLayer.Error
             };
 
+           
             var outputErrorHandle = computeOutputErrorJob.Schedule(OutputLayer.Error.Length, 4, feedforwardHandle);
+
+            //Convert that output error to the output node gradient
+
+
             //outputErrorHandle.Complete();
             //Perform backpropigation
             JobHandle backpropigationHandle = outputErrorHandle;
@@ -129,16 +135,19 @@ namespace NeuralBurst
 
                 if(layerIndex != 0)
                 {
-                    var backPropigateLayerJob = new ErrorEvaluators.SigmoidLayerErrorEvaluator()
+                    backpropigationHandle =
+                        targetLayer.ModelLayer.BackpropigateLayer(targetLayer, nextLayer, backpropigationHandle);
+
+/*                    var backPropigateLayerJob = new SigmoidLayer.SigmoidLayerErrorEvaluator()
                     {
-                        NextLayerWeights = nextLayer.TargetLayer.Weights,
+                        NextLayerWeights = nextLayer.ModelLayer.Weights,
                         NextLayerError = nextLayer.Error,
                         WeightedActivation = targetLayer.WeightedInput,
                         ErrorOutput = targetLayer.Error
                     };
 
                     backpropigationHandle =
-                        backPropigateLayerJob.Schedule(targetLayer.Error.Length, 4, backpropigationHandle);
+                        backPropigateLayerJob.Schedule(targetLayer.Error.Length, 4, backpropigationHandle);*/
                     //backpropigationHandle.Complete();
                 }
 
@@ -153,8 +162,6 @@ namespace NeuralBurst
                 backpropigationHandle =
                     accumulateGradientOverWeightJob.Schedule(nextLayer.WeightGradients.Length, 4,
                         backpropigationHandle);
-
-                //backpropigationHandle.Complete();
             }
 
             JobHandle.ScheduleBatchedJobs();
@@ -171,11 +178,11 @@ namespace NeuralBurst
                     TestCount = 1,
                     LearningRate = LearningRate,
                     WeightGradients = layer.WeightGradients,
-                    LayerWeights = layer.TargetLayer.Weights
+                    LayerWeights = layer.ModelLayer.Weights
                 };
 
                 updateNetworkJobHandle =
-                    applyGradientsToWeightsJob.Schedule(layer.TargetLayer.Weights.Length, 4, updateNetworkJobHandle);
+                    applyGradientsToWeightsJob.Schedule(layer.ModelLayer.Weights.Length, 4, updateNetworkJobHandle);
 
                 //updateNetworkJobHandle.Complete();
 
@@ -183,12 +190,12 @@ namespace NeuralBurst
                 {
                     TestCount = 1,
                     LearningRate = LearningRate,
-                    LayerBiases = layer.TargetLayer.Biases,
+                    LayerBiases = layer.ModelLayer.Biases,
                     LayerErrors = layer.Error
                 };
 
                 updateNetworkJobHandle =
-                    applyGradientsToBiasesJob.Schedule(layer.TargetLayer.Biases.Length, 4, updateNetworkJobHandle);
+                    applyGradientsToBiasesJob.Schedule(layer.ModelLayer.Biases.Length, 4, updateNetworkJobHandle);
 
                 //updateNetworkJobHandle.Complete();
                 int x = 1;
@@ -211,36 +218,5 @@ namespace NeuralBurst
             Profiler.EndSample();
             return updateNetworkJobHandle;
         }
-
-        private class EvaluatorLayer
-        {
-            public readonly int Size;
-            public readonly NetworkLayer TargetLayer;
-
-            public NativeArray<float> OutputActivation;
-            public NativeArray<float> WeightedInput;
-
-            public NativeArray<float> Error;//Also is in a sense, the bias gradient ?
-            public NativeArray<float> WeightGradients;
-
-            public EvaluatorLayer(NetworkLayer targetLayer)
-            {
-                Size = targetLayer.Size;
-                TargetLayer = targetLayer;
-                OutputActivation = new NativeArray<float>(targetLayer.Size, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-                WeightedInput = new NativeArray<float>(targetLayer.Size, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-
-                Error = new NativeArray<float>(Size, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-                WeightGradients = new NativeArray<float>(TargetLayer.Weights.Length, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-            }
-
-            public void Dispose()
-            {
-                OutputActivation.Dispose();
-            }
-        }
-
-
-
     }
 }

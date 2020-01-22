@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Unity.Collections;
 using Unity.Jobs;
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace NeuralBurst.TestCases
@@ -20,11 +21,7 @@ namespace NeuralBurst.TestCases
 
         public int Epochs = 10;
 
-        public TextAsset Dataset;
-
-        //public int DatasetSize;
-        ///public NativeArray<float> InputAttributes;
-        //public NativeArray<float> ExpectedResults;
+        public TextAsset DatasetSource;
 
         private BrestCancerDataset _dataset;
 
@@ -44,7 +41,7 @@ namespace NeuralBurst.TestCases
                     {
                         LayerType = ELayerType.Input,
                         NeuronCount = InputAttributeCount,
-                        NeuronType = ENeruonType.Linear
+                        NeuronType = ENeruonType.Sigmoid
                     },
                     new LayerParamaters()
                     {
@@ -72,21 +69,16 @@ namespace NeuralBurst.TestCases
 
             var networkEvaluator = new NetworkEvaluator(neuralNetwork);
 
-            //var testSetArray = new NativeArray<float>(InputAttributeCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-            //var testResultArray = new NativeArray<float>(1, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
 
             var tempResult = new NativeArray<float>(1, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
 
             //Test inital accuracy
-
             TestInitialAccuracy(networkEvaluator, tempResult);
 
             //Learn over a number of iterations
             for (int epoch = 0; epoch < Epochs; epoch++)
             {
-
                 //For each epoch, perform training
-
                 for (int tc = 0; tc < _dataset.TrainingSetSize; tc++)
                 {
                     _dataset.GetTrainingCase(tc, out var trainingInput, out var trainingResult);
@@ -132,7 +124,8 @@ namespace NeuralBurst.TestCases
                 _dataset.GetTestCase(i, out var trainingInput, out var trainingResult);
                 networkEvaluator.Evaluate(trainingInput, tempResult).Complete();
 
-                var error = Math.Abs(tempResult[0] - trainingResult[0, 0]);
+                //var error = Math.Abs(tempResult[0] - trainingResult[0, 0]);
+                var error = CrossEntropyCost(tempResult[0], trainingResult[0, 0]);
                 bool wasCorrect = error < 0.5f;
                 totalCorrect += wasCorrect ? 1 : 0;
                 totalError += error;
@@ -145,6 +138,17 @@ namespace NeuralBurst.TestCases
             Debug.Log($"Initial: Accuracy:{accuracy:P2}  Average Error:{averageError:F4}");
         }
 
+        private float CrossEntropyCost(float actual, float expected)
+        {
+            float intermediate = -expected * math.log(actual) - (1.0f - expected) * math.log(1.0f - actual);
+            if (float.IsNaN(intermediate))
+            {
+                intermediate = 0.0f;
+            }
+
+            return intermediate;
+        }
+
         private void ProcessEpoch()
         {
 
@@ -152,7 +156,7 @@ namespace NeuralBurst.TestCases
 
         private void ParseDataset()
         {
-            _dataset = new BrestCancerDataset(Dataset.text);
+            _dataset = new BrestCancerDataset(DatasetSource.text);
         }
 
         void OnDestroy()
