@@ -85,11 +85,7 @@ namespace NeuralBurst
             PreviousLayerSize = previousLayer.NeuronCount;
             int weightCount = layerParamaters.NeuronCount * previousLayer.NeuronCount;
             Weights = new NativeArray<float>(weightCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-
-            if (layerParamaters.NeuronType.HasBiases())
-            {
-                Biases = new NativeArray<float>(Size, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-            }
+            Biases = new NativeArray<float>(Size, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
         }
 
         public static NetworkLayer ConstructLayer(LayerParamaters layerParamaters)
@@ -116,7 +112,7 @@ namespace NeuralBurst
                 case ENeruonType.RectifiedLinear:
                     return new RectifiedLinearLayer(layerParamaters, previousLayer);
                 case ENeruonType.Sigmoid:
-                   return new SigmoidLayer(layerParamaters, previousLayer);
+                    return new SigmoidLayer(layerParamaters, previousLayer);
                 default:
                     throw new ArgumentOutOfRangeException();
             }

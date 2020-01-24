@@ -274,6 +274,7 @@ GameObject:
   - component: {fileID: 1902220617}
   - component: {fileID: 1902220616}
   - component: {fileID: 1902220618}
+  - component: {fileID: 1902220619}
   m_Layer: 0
   m_Name: TestRunner
   m_TagString: Untagged
@@ -316,7 +317,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1902220615}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 844fbafc1c51fb54f80f458a1250da8b, type: 3}
   m_Name: 
@@ -324,3 +325,17 @@ MonoBehaviour:
   Labels: {fileID: 4900000, guid: 012511df56d6c9e4cbd6c670d9608e54, type: 3}
   Images: {fileID: 4900000, guid: d28b368da30781745bdf9a7f5d51f3c5, type: 3}
   Epochs: 500
+--- !u!114 &1902220619
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1902220615}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7e653d6a37e5db14aadcc3c25ac5449b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  DataCSV: {fileID: 4900000, guid: b277082426c2b174cbcbbd10a9122ebe, type: 3}
+  Epochs: 50

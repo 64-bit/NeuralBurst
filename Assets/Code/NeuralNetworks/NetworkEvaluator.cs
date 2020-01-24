@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Assets.Code.NeuralNetworks.NeuronEvaluators;
 using NeuralNetworks.Utilities;
 using Unity.Collections;
 using Unity.Jobs;
@@ -16,7 +15,7 @@ namespace NeuralBurst
     /// </summary>
     public class NetworkEvaluator
     {
-        public float LearningRate = 0.0015f;
+        public float LearningRate = 0.00015f;
         private int _simultaniousLayers;
 
         private readonly List<EvaluatorLayer> _layers = new List<EvaluatorLayer>();
