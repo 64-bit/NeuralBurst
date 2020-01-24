@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using JetBrains.Annotations;
 using Unity.Collections;
 using Unity.Jobs;
 
@@ -97,6 +96,10 @@ namespace NeuralBurst
         {
             switch (layerParamaters.NeuronType)
             {
+                case ENeruonType.Linear:
+                    return new LinearLayer(layerParamaters);
+                case ENeruonType.RectifiedLinear:
+                    return new RectifiedLinearLayer(layerParamaters);
                 case ENeruonType.Sigmoid:
                     return new SigmoidLayer(layerParamaters);
                 default:
@@ -108,6 +111,10 @@ namespace NeuralBurst
         {
             switch (layerParamaters.NeuronType)
             {
+                case ENeruonType.Linear:
+                    return new LinearLayer(layerParamaters, previousLayer);
+                case ENeruonType.RectifiedLinear:
+                    return new RectifiedLinearLayer(layerParamaters, previousLayer);
                 case ENeruonType.Sigmoid:
                    return new SigmoidLayer(layerParamaters, previousLayer);
                 default:

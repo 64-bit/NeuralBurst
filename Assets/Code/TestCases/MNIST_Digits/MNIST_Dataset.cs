@@ -62,6 +62,9 @@ namespace NeuralBurst.TestCases
                 throw new InvalidOperationException("Label list and images are not the same length");
             }
 
+            int NEWCOUNT = 10000;
+            imageCount = NEWCOUNT;
+
             var labelData = new NativeArray<float>(imageCount * 10, Allocator.Persistent,NativeArrayOptions.UninitializedMemory);
 
             for (int i = 0; i < imageCount; i++)
@@ -70,7 +73,7 @@ namespace NeuralBurst.TestCases
             }
 
             var imageData = new NativeArray<float>(imageCount * 28 * 28, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-            imageData.CopyFrom(imageList.ToArray());
+            imageData.CopyFrom(imageList.Take(28*28* NEWCOUNT).ToArray());
 
             InitFromData(IMAGE_SIZE, 10, imageCount, imageData, labelData, 0.9f);
         }

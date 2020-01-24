@@ -18,7 +18,7 @@ namespace NeuralBurst
         public NativeArray<float> Error;//Also is in a sense, the bias gradient ?
         public NativeArray<float> WeightGradients;
 
-        public EvaluatorLayer(NetworkLayer modelLayer)
+        public EvaluatorLayer(NetworkLayer modelLayer, int multiLayers)
         {
             Size = modelLayer.Size;
             ModelLayer = modelLayer;
@@ -34,4 +34,29 @@ namespace NeuralBurst
             OutputActivation.Dispose();
         }
     }
+
+
+    public struct MultiLayerView
+    {
+        public int SetCount;
+        public int ElementsPerSet;
+
+        public NativeArray<float> Data;
+
+        public MultiLayerView(int layerSize, int layers)
+        {
+            ElementsPerSet = layerSize;
+            SetCount = layers;
+            Data = new NativeArray<float>(layerSize * layers, Allocator.Persistent);
+        }
+
+        public float this[int set, int element]
+
+        {
+            get => Data[set * ElementsPerSet + element];
+            set => Data[set * ElementsPerSet + element] = value;
+        }
+
+    }
+
 }

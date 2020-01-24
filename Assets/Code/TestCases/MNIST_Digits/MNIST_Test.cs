@@ -39,7 +39,13 @@ namespace NeuralBurst.TestCases
                     new LayerParamaters()
                     {
                         LayerType = ELayerType.Hidden,
-                        NeuronCount = 64,
+                        NeuronCount = 256,
+                        NeuronType = ENeruonType.Sigmoid
+                    },
+                    new LayerParamaters()
+                    {
+                        LayerType = ELayerType.Hidden,
+                        NeuronCount = 32,
                         NeuronType = ENeruonType.Sigmoid
                     },
                     new LayerParamaters()

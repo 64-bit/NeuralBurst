@@ -17,6 +17,7 @@ namespace NeuralBurst
     public class NetworkEvaluator
     {
         public float LearningRate = 0.0015f;
+        private int _simultaniousLayers;
 
         private readonly List<EvaluatorLayer> _layers = new List<EvaluatorLayer>();
 
@@ -24,11 +25,14 @@ namespace NeuralBurst
         private EvaluatorLayer OutputLayer => _layers[_layers.Count - 1];
         private JobHandle _lastDependentJobHandle;
 
-        public NetworkEvaluator(NeuralNetwork network)
+        public NetworkEvaluator(NeuralNetwork network,float learningRate = 0.0015f, int simultaniousLayers = 16)
         {
+            LearningRate = learningRate;
+            _simultaniousLayers = simultaniousLayers;
+
             foreach (var layer in network.Layers)
             {
-                _layers.Add(new EvaluatorLayer(layer));
+                _layers.Add(new EvaluatorLayer(layer, simultaniousLayers));
             }
         }
 
