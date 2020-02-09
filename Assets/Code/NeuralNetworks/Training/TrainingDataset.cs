@@ -1,19 +1,14 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
-using UnityEngine;
 
 namespace NeuralBurst
 {
     public class TrainingDataset
     {
-        protected NativeArray<float> InputData;
-        protected NativeArray<float> ExpectedResult;
+        protected NativeArray2D<float> InputData;
+        protected NativeArray2D<float> ExpectedResult;
 
 
         public int CaseCount { get; protected set; }       
@@ -25,14 +20,24 @@ namespace NeuralBurst
 
         public JobHandle LastDependentJobHandle;
 
-        protected void InitFromData(int inputSize, int outputSize, int elements, NativeArray<float> inputData, NativeArray<float> results, float trainingSetSize = 0.7f)
+        protected void InitFromData(int inputSize, int outputSize, int elements, NativeArray2D<float> inputData, NativeArray2D<float> results, float trainingSetSize = 0.7f)
         {
-            if (inputData.Length != inputSize * elements)
+            if (inputData.Dimensions.x != elements)
             {
                 throw new ArgumentException();       //TODO: 
             }
 
-            if (results.Length != outputSize * elements)
+            if (inputData.Dimensions.y != inputSize)
+            {
+                throw new ArgumentException();       //TODO: 
+            }
+
+            if (results.Dimensions.x != elements)
+            {
+                throw new ArgumentException();
+            }
+
+            if (results.Dimensions.y != outputSize)
             {
                 throw new ArgumentException();
             }
@@ -66,7 +71,7 @@ namespace NeuralBurst
             JobHandle.ScheduleBatchedJobs();
         }
 
-        public void GetTrainingCase(int trainingCase, out TestDataSlice trainingInput, out TestDataSlice trainingResult)
+        public void GetTrainingCase(int trainingCase, out NativeSlice2D<float> trainingInput, out NativeSlice2D<float> trainingResult)
         {
             if (trainingCase >= TrainingSetSize)
             {
@@ -77,7 +82,18 @@ namespace NeuralBurst
             trainingResult = GetResultSlice(trainingCase, 1);
         }
 
-        public void GetTestCase(int testCase, out TestDataSlice testInput, out TestDataSlice testResult)
+        public void GetTrainingCase(int trainingCase, int caseCount, out NativeSlice2D<float> trainingInput, out NativeSlice2D<float> trainingResult)
+        {
+            if (trainingCase + caseCount >= TrainingSetSize)
+            {
+                throw new ArgumentOutOfRangeException();//TODO:DOCS
+            }
+
+            trainingInput = GetInputSlice(trainingCase, caseCount);
+            trainingResult = GetResultSlice(trainingCase, caseCount);
+        }
+
+        public void GetTestCase(int testCase, out NativeSlice2D<float> testInput, out NativeSlice2D<float> testResult)
         {
             if (testCase >= TestingSetSize)
             {
@@ -88,72 +104,69 @@ namespace NeuralBurst
             testResult = GetResultSlice(TrainingSetSize + testCase, 1);
         }
 
-        private TestDataSlice GetInputSlice(int start, int count)
+        public void GetTestCase(int testCase, int caseCount, out NativeSlice2D<float> testInput, out NativeSlice2D<float> testResult)
         {
-            return new TestDataSlice()
+            if (testCase + caseCount >= TestingSetSize)
+            {
+                throw new ArgumentOutOfRangeException();//TODO:DOCS
+            }
+
+            testInput = GetInputSlice(TrainingSetSize + testCase, caseCount);
+            testResult = GetResultSlice(TrainingSetSize + testCase, caseCount);
+        }
+
+        private NativeSlice2D<float> GetInputSlice(int start, int count)
+        {
+            return InputData.Slice(start, count);
+
+
+/*            return new TestDataSlice()
             {
                 Data = InputData.Slice(start * InputSize, count * InputSize),
                 ElementsPerSet = InputSize,
                 SetCount = count
-            };
+            };*/
         }
 
-        private TestDataSlice GetResultSlice(int start, int count)
+        private NativeSlice2D<float> GetResultSlice(int start, int count)
         {
-            return new TestDataSlice()
+            return ExpectedResult.Slice(start, count);
+/*            return new TestDataSlice()
             {
                 Data = ExpectedResult.Slice(start * ResultSize, count * ResultSize),
                 ElementsPerSet = ResultSize,
                 SetCount = count
-            };
+            };*/
         }
 
         [BurstCompile]
         private struct ShuffleTrainingDataJob : IJob
         {
             public uint Seed;
-            public TestDataSlice InputData;
-            public TestDataSlice ResultData;
+            public NativeSlice2D<float> InputData;
+            public NativeSlice2D<float> ResultData;
 
             public void Execute()
             {
                 var random = new Unity.Mathematics.Random(Seed);
 
-                for (int i = 0; i < InputData.SetCount; i++)
+                for (int i = 0; i < InputData.Dimensions.x; i++)
                 {
-                    var swap = random.NextInt(0, InputData.SetCount);
+                    var swap = random.NextInt(0, InputData.Dimensions.x);
                     Swap(InputData,i, swap);
                     Swap(ResultData, i, swap);
                 }
             }
 
-            private void Swap(TestDataSlice slice, int a, int b)
+            private void Swap(NativeSlice2D<float> slice, int a, int b)
             {
-                for (int i = 0; i < slice.ElementsPerSet; i++)
+                for (int i = 0; i < slice.Dimensions.y; i++)
                 {
                     var tmp = slice[a, i];
                     slice[a, i] = slice[b,i];
                     slice[b, i] = tmp;
                 }
             }
-
         }
-
-    }
-
-    public struct TestDataSlice
-    {
-        public int SetCount;
-        public int ElementsPerSet;
-
-        public NativeSlice<float> Data;
-
-        public float this[int set, int element]
-
-        {
-            get => Data[set * ElementsPerSet + element];
-            set => Data[set * ElementsPerSet + element] = value;
-        }
-       
     }
 }

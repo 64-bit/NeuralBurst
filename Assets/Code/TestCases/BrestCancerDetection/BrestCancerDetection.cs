@@ -41,7 +41,7 @@ namespace NeuralBurst.TestCases
                     {
                         LayerType = ELayerType.Input,
                         NeuronCount = InputAttributeCount,
-                        NeuronType = ENeruonType.Sigmoid
+                        NeuronType = ENeruonType.Input
                     },
                     new LayerParamaters()
                     {
@@ -70,10 +70,10 @@ namespace NeuralBurst.TestCases
             var networkEvaluator = new NetworkEvaluator(neuralNetwork);
 
 
-            var tempResult = new NativeArray<float>(1, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            var tempResult = new NativeArray2D<float>(1,1);
 
             //Test inital accuracy
-            TestInitialAccuracy(networkEvaluator, tempResult);
+            TestInitialAccuracy(networkEvaluator, tempResult.Slice());
 
             //Learn over a number of iterations
             for (int epoch = 0; epoch < Epochs; epoch++)
@@ -84,7 +84,7 @@ namespace NeuralBurst.TestCases
                     _dataset.GetTrainingCase(tc, out var trainingInput, out var trainingResult);
 
                     //Evolve network
-                    var jobHandle = networkEvaluator.GradientDescentBackpropigate(trainingInput, trainingResult, out _);
+                    var jobHandle = networkEvaluator.GradientDescentBackpropigate(trainingInput, trainingResult,1, out _);
                     jobHandle.Complete();
                 }
 
@@ -94,9 +94,9 @@ namespace NeuralBurst.TestCases
                 for (int i = 0; i < _dataset.TestingSetSize; i++)
                 {
                     _dataset.GetTestCase(i, out var trainingInput, out var trainingResult);
-                    networkEvaluator.Evaluate(trainingInput, tempResult).Complete();
+                    networkEvaluator.Evaluate(trainingInput, tempResult.Slice(), 1).Complete();
 
-                    var error = Math.Abs(tempResult[0] - trainingResult[0, 0]);
+                    var error = Math.Abs(tempResult[0,0] - trainingResult[0, 0]);
                     bool wasCorrect = error < 0.5f;
                     totalCorrect += wasCorrect ? 1 : 0;
                     totalError += error;
@@ -111,10 +111,10 @@ namespace NeuralBurst.TestCases
                 yield return null;
             }
 
-            tempResult.Dispose();
+            tempResult.BackingStore.Dispose();
         }
 
-        private void TestInitialAccuracy(NetworkEvaluator networkEvaluator, NativeArray<float> tempResult)
+        private void TestInitialAccuracy(NetworkEvaluator networkEvaluator, NativeSlice2D<float> tempResult)
         {
             float totalError = 0.0f;
             int totalCorrect = 0;
@@ -122,10 +122,10 @@ namespace NeuralBurst.TestCases
             for (int i = 0; i < _dataset.TestingSetSize; i++)
             {
                 _dataset.GetTestCase(i, out var trainingInput, out var trainingResult);
-                networkEvaluator.Evaluate(trainingInput, tempResult).Complete();
+                networkEvaluator.Evaluate(trainingInput, tempResult, 1).Complete();
 
                 //var error = Math.Abs(tempResult[0] - trainingResult[0, 0]);
-                var error = CrossEntropyCost(tempResult[0], trainingResult[0, 0]);
+                var error = CrossEntropyCost(tempResult[0,0], trainingResult[0, 0]);
                 bool wasCorrect = error < 0.5f;
                 totalCorrect += wasCorrect ? 1 : 0;
                 totalError += error;

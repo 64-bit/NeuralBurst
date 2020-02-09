@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Assets.Code.NeuralNetworks.Evaluator;
 using NeuralNetworks.Utilities;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using UnityEngine.Profiling;
@@ -20,7 +22,7 @@ namespace NeuralBurst
 
         private readonly List<EvaluatorLayer> _layers = new List<EvaluatorLayer>();
 
-        private EvaluatorLayer InputLayer => _layers[0];
+        private EvaluatorInputLayer InputLayer => _layers[0] as EvaluatorInputLayer;
         private EvaluatorLayer OutputLayer => _layers[_layers.Count - 1];
         private JobHandle _lastDependentJobHandle;
 
@@ -31,7 +33,7 @@ namespace NeuralBurst
 
             foreach (var layer in network.Layers)
             {
-                _layers.Add(new EvaluatorLayer(layer, simultaniousLayers));
+                _layers.Add(EvaluatorLayer.CreateFromLayer(layer, simultaniousLayers));
             }
         }
 
@@ -43,32 +45,36 @@ namespace NeuralBurst
             }
         }
 
-        public JobHandle Evaluate(TestDataSlice inputData, NativeArray<float> outputArray)
+        public JobHandle Evaluate(NativeSlice2D<float> inputData, NativeSlice2D<float> outputArray, int count)
         {
             Profiler.BeginSample("NetworkEvaluator::Evaluate");
             var inputLayer = _layers[0];
             var outputLayer = _layers[_layers.Count - 1];
 
-            if (inputData.ElementsPerSet != inputLayer.Size)
+            if (inputData.Dimensions.y != inputLayer.Size)
             {
                 throw new ArgumentException();//TODO:
             }
 
-            if (outputArray.Length != outputLayer.Size)
+            if (outputArray.Dimensions.y != outputLayer.Size)
             {
                 throw new ArgumentException();//TODO:
             }
 
-            var result =  EvaluateInternal(inputData, outputArray);
+            var result =  EvaluateInternal(inputData, outputArray, count);
             JobHandle.ScheduleBatchedJobs();
             Profiler.EndSample();
             return result;
         }
 
-        private JobHandle EvaluateInternal(TestDataSlice inputData, NativeArray<float> outputArray)
+        private JobHandle EvaluateInternal(NativeSlice2D<float> inputData, NativeSlice2D<float> outputArray, int count) //Evaluate a single instance
         {
-            //Copy to input layer
-            inputData.Data.CopyTo(InputLayer.OutputActivation); //TODO:Re-Work this to take slices
+            //Copy to input layer TODO:Just cast to input layer and set the slice on it
+            //TODO:Validate size ?
+            //inputData.Data.CopyTo(InputLayer.OutputActivation.Data);
+            InputLayer.SetInput(inputData);
+
+            //inputData.Data.CopyTo(InputLayer.OutputActivation); //TODO:Re-Work this to take slices
 
             //InputLayer.OutputActivation.CopyFrom(inputData);
             //var jobHandle = inputData.CopyToJob(InputLayer.OutputActivation, _lastDependentJobHandle);
@@ -77,30 +83,53 @@ namespace NeuralBurst
             for (int i = 1; i < _layers.Count; i++)
             {
                 //Evaluate layers
-                jobHandle = EvaluateLayer(i, jobHandle);
+                jobHandle = EvaluateLayer(i, jobHandle, count);
             }
 
             _lastDependentJobHandle = jobHandle;
 
-            //Copy to output
-            return OutputLayer.OutputActivation.CopyToJob(outputArray, jobHandle);
+            var copyToOutputJob = new CopyToOutputJob()
+            {
+                Source = OutputLayer.OutputActivation.Slice(0, count),
+                Destination = outputArray
+            };
+
+            return copyToOutputJob.Schedule(copyToOutputJob.Source.Dimensions.x, 64, jobHandle);
+
+            //Copy to output TODO: Before evaluating, set the output array on the output layer
+            //return OutputLayer.OutputActivation.BackingStore.CopyToJob(outputArray.BackingSlice, jobHandle);
         }
 
-        private JobHandle EvaluateLayer(int layerIndex, JobHandle lastJobHandle)
+        [BurstCompile]
+        private struct CopyToOutputJob : IJobParallelFor
+        {
+            public NativeSlice2D<float> Source;
+            public NativeSlice2D<float> Destination;
+
+            public void Execute(int index)
+            {
+                for (int y = 0; y < Source.Dimensions.y; y++)
+                {
+                    Destination[index, y] = Source[index, y];
+                }
+            }
+        }
+
+        private JobHandle EvaluateLayer(int layerIndex, JobHandle lastJobHandle, int instanceCount)
         {
             var currentLayer = _layers[layerIndex];
             var lastLayer = _layers[layerIndex - 1];
 
-           return currentLayer.ModelLayer.EvaluateLayer(lastLayer, currentLayer, lastJobHandle);
+           return currentLayer.ModelLayer.EvaluateLayer(lastLayer, currentLayer, instanceCount, lastJobHandle);
         }
 
         //Oh Boy
-        public JobHandle GradientDescentBackpropigate(TestDataSlice inputData, TestDataSlice expectedOutput, out float errorSum)
+        public JobHandle GradientDescentBackpropigate(NativeSlice2D<float> inputData, NativeSlice2D<float> expectedOutput, int testCaseCount, out float errorSum)
         {
             Profiler.BeginSample("NetworkEvaluator::GradientDescentBackpropigate");
-            var resultArray = new NativeArray<float>(OutputLayer.Size, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+            var resultArray = new NativeArray2D<float>(testCaseCount, OutputLayer.Size);
 
-            var feedforwardHandle = Evaluate(inputData, resultArray);
+            var feedforwardHandle = Evaluate(inputData, resultArray.Slice(0, testCaseCount), testCaseCount);
             //Now we need to use all the jobs created before to evaluate this.
 
             //Compute output error
@@ -116,16 +145,15 @@ namespace NeuralBurst
             var computeOutputErrorJob = new ErrorEvaluators.CrossEntropySigmoidOutputErrorEvaluator()
             {
                 Expected = expectedOutput,
-                Actuall = resultArray,
-                WeightedActivation = OutputLayer.WeightedInput,
-                ErrorOut = OutputLayer.Error
+                Actuall = resultArray.Slice(0, testCaseCount),
+                WeightedActivation = OutputLayer.SliceWeightedInputs(0, testCaseCount),
+                ErrorOut = OutputLayer.SliceError(0, testCaseCount)
             };
 
            
-            var outputErrorHandle = computeOutputErrorJob.Schedule(OutputLayer.Error.Length, 4, feedforwardHandle);
+            var outputErrorHandle = computeOutputErrorJob.Schedule(OutputLayer.Error.Dimensions.y, 4, feedforwardHandle);
 
             //Convert that output error to the output node gradient
-
 
             //outputErrorHandle.Complete();
             //Perform backpropigation
@@ -135,29 +163,16 @@ namespace NeuralBurst
             {
                 var targetLayer = _layers[layerIndex];
                 var nextLayer = _layers[layerIndex + 1];
-
+                
                 if(layerIndex != 0)
                 {
-                    backpropigationHandle =
-                        targetLayer.ModelLayer.BackpropigateLayer(targetLayer, nextLayer, backpropigationHandle);
-
-/*                    var backPropigateLayerJob = new SigmoidLayer.SigmoidLayerErrorEvaluator()
-                    {
-                        NextLayerWeights = nextLayer.ModelLayer.Weights,
-                        NextLayerError = nextLayer.Error,
-                        WeightedActivation = targetLayer.WeightedInput,
-                        ErrorOutput = targetLayer.Error
-                    };
-
-                    backpropigationHandle =
-                        backPropigateLayerJob.Schedule(targetLayer.Error.Length, 4, backpropigationHandle);*/
-                    //backpropigationHandle.Complete();
+                    backpropigationHandle = targetLayer.ModelLayer.BackpropigateLayer(targetLayer, nextLayer, testCaseCount, backpropigationHandle);
                 }
 
                 var accumulateGradientOverWeightJob = new ErrorEvaluators.AccumulateGradientOverWeight()
                 {
-                    PreviousActivation = targetLayer.OutputActivation,
-                    NextError = nextLayer.Error,
+                    PreviousActivation = targetLayer.SliceActivations(0, testCaseCount),
+                    NextError = nextLayer.SliceError(0, testCaseCount),
 
                     WeightGradients = nextLayer.WeightGradients
                 };
@@ -168,6 +183,7 @@ namespace NeuralBurst
             }
 
             JobHandle.ScheduleBatchedJobs();
+        
 
             //Update weights (all layers but first)
             JobHandle updateNetworkJobHandle = backpropigationHandle;
@@ -194,7 +210,7 @@ namespace NeuralBurst
                     TestCount = 1,
                     LearningRate = LearningRate,
                     LayerBiases = layer.ModelLayer.Biases,
-                    LayerErrors = layer.Error
+                    LayerErrors = layer.Error.Slice(0, testCaseCount)
                 };
 
                 updateNetworkJobHandle =
@@ -208,18 +224,27 @@ namespace NeuralBurst
 
             updateNetworkJobHandle.Complete();
 
-            errorSum = 0.0f;
-            for (int i = 0; i < OutputLayer.OutputActivation.Length; i++)
-            {
-               // errorSum += OutputLayer.Error[i];
-
-                errorSum += Math.Abs(OutputLayer.OutputActivation[i] - expectedOutput[0,i]);
-            }
+            //Compute average error sum for test cases
+            ComputeErrorSum(expectedOutput, testCaseCount, out errorSum);
 
             resultArray.Dispose();
 
             Profiler.EndSample();
             return updateNetworkJobHandle;
+        }
+
+        private void ComputeErrorSum(NativeSlice2D<float> expectedOutput, int testCaseCount, out float errorSum)
+        {
+            errorSum = 0.0f;
+            for (int x = 0; x < testCaseCount; x++)
+            {
+                for (int y = 0; y < OutputLayer.OutputActivation.Dimensions.y; y++)
+                {
+                    errorSum += Math.Abs(OutputLayer.OutputActivation[x, y] - expectedOutput[x, y]);
+                }
+            }
+
+            errorSum /= testCaseCount;
         }
     }
 }

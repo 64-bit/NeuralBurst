@@ -30,7 +30,8 @@ namespace NeuralBurst
     {
         Linear,
         RectifiedLinear,
-        Sigmoid
+        Sigmoid,
+        Input
     }
 
     public static class ENeuronTypeExtensions

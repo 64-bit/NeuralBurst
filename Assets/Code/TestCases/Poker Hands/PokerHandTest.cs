@@ -1,4 +1,5 @@
-﻿using System;
+﻿/*
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -63,7 +64,7 @@ namespace NeuralBurst.TestCases
         private IEnumerator RunTest(PokeHandsDataset dataset, NeuralNetwork network)
         {
             var networkEvaluator = new NetworkEvaluator(network);
-            var tempResult = new NativeArray<float>(10, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            var tempResult = new MultiLayerView<float>(10,1);
             //Test inital accuracy
             TestInitialAccuracy(dataset, networkEvaluator, tempResult);
 
@@ -108,10 +109,10 @@ namespace NeuralBurst.TestCases
                 yield return null;
             }
 
-            tempResult.Dispose();
+            tempResult.Data.Dispose();
         }
 
-        private void TestInitialAccuracy(PokeHandsDataset dataset, NetworkEvaluator networkEvaluator, NativeArray<float> tempResult)
+        private void TestInitialAccuracy(PokeHandsDataset dataset, NetworkEvaluator networkEvaluator, MultiLayerView<float> tempResult)
         {
             float totalError = 0.0f;
             int totalCorrect = 0;
@@ -135,14 +136,14 @@ namespace NeuralBurst.TestCases
             Debug.Log($"Initial: Accuracy:{accuracy:P2}  Average Error:{averageError:F4}");
         }
 
-        private float CrossEntropyCost(NativeArray<float> actual, TestDataSlice expected)
+        private float CrossEntropyCost(MultiLayerView<float> actual, TestDataSlice expected)
         {
             float errorSum = 0.0f;
 
-            for (int i = 0; i < actual.Length; i++)
+            for (int i = 0; i < actual.InstanceLength; i++)
             {
                 float e = expected[0, i];
-                float a = actual[i];
+                float a = actual[0,i];
 
                 float intermediate = -e * math.log(a) - (1.0f - e) * math.log(1.0f - a);
                 if (float.IsNaN(intermediate))
@@ -156,16 +157,16 @@ namespace NeuralBurst.TestCases
             return errorSum;
         }
 
-        private bool WasCorrect(NativeArray<float> actual, TestDataSlice expected)
+        private bool WasCorrect(MultiLayerView<float> actual, TestDataSlice expected)
         {
             int maxIndex = -1;
             float maxVal = float.MinValue;
 
-            for (int i = 0; i < actual.Length; i++)
+            for (int i = 0; i < actual.InstanceLength; i++)
             {
-                if (actual[i] > maxVal)
+                if (actual[0,i] > maxVal)
                 {
-                    maxVal = actual[i];
+                    maxVal = actual[0,i];
                     maxIndex = i;
                 }
             }
@@ -175,3 +176,4 @@ namespace NeuralBurst.TestCases
     }
 
 }
+*/

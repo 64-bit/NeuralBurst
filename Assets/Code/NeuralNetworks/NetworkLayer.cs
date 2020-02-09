@@ -50,11 +50,9 @@ namespace NeuralBurst
             protected set;
         }
 
-        public abstract JobHandle EvaluateLayer(EvaluatorLayer lastLayerState, EvaluatorLayer currentLayerState, JobHandle jobHandleToWaitOn);
+        public abstract JobHandle EvaluateLayer(EvaluatorLayer lastLayerState, EvaluatorLayer currentLayerState, int count, JobHandle jobHandleToWaitOn);
 
-        public abstract JobHandle BackpropigateLayer(EvaluatorLayer currentLayerState, EvaluatorLayer nextLayerState,
-            JobHandle jobHandleToWaitOn);
-
+        public abstract JobHandle BackpropigateLayer(EvaluatorLayer currentLayerState, EvaluatorLayer nextLayerState, int count, JobHandle jobHandleToWaitOn);
 
         protected void InitLayerInput(LayerParamaters layerParamaters)
         {
@@ -98,6 +96,8 @@ namespace NeuralBurst
                     return new RectifiedLinearLayer(layerParamaters);
                 case ENeruonType.Sigmoid:
                     return new SigmoidLayer(layerParamaters);
+                case ENeruonType.Input:
+                    return new InputLayer(layerParamaters);
                 default:
                     throw new ArgumentOutOfRangeException();
             }
@@ -113,6 +113,8 @@ namespace NeuralBurst
                     return new RectifiedLinearLayer(layerParamaters, previousLayer);
                 case ENeruonType.Sigmoid:
                     return new SigmoidLayer(layerParamaters, previousLayer);
+                case ENeruonType.Input:
+                    throw new InvalidOperationException("Only the first layer in a network can be a input layer");
                 default:
                     throw new ArgumentOutOfRangeException();
             }

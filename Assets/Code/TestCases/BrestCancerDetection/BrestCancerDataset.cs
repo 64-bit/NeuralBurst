@@ -21,12 +21,13 @@ namespace NeuralBurst.TestCases
             var resultLines = source.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
             var DatasetSize = resultLines.Length;
 
-            var InputAttributes = new NativeArray<float>(resultLines.Length * BrestCancerDetection.InputAttributeCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-            var ExpectedResults = new NativeArray<float>(resultLines.Length, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            var InputAttributes = new NativeArray2D<float>(resultLines.Length, BrestCancerDetection.InputAttributeCount);
+            var ExpectedResults = new NativeArray2D<float>(resultLines.Length, 1);
 
             int inputArrayPtr = 0;
             int resultArrayPtr = 0;
 
+            int currentLine = 0;
             foreach (var line in resultLines)
             {
                 if (line.Length < 10)
@@ -58,9 +59,11 @@ namespace NeuralBurst.TestCases
                 //Skip first
                 for (int i = 1; i < 10; i++)
                 {
-                    InputAttributes[inputArrayPtr++] = lineAttributes[i];
+                    InputAttributes[currentLine, i-1] = lineAttributes[i];
                 }
-                ExpectedResults[resultArrayPtr++] = Math.Abs(lineAttributes[10] - 2.0f) < 0.0001f ? 0.0f : 1.0f;
+                ExpectedResults[currentLine, 0] = Math.Abs(lineAttributes[10] - 2.0f) < 0.0001f ? 0.0f : 1.0f;
+
+                currentLine++;
             }
             InitFromData(BrestCancerDetection.InputAttributeCount, 1, DatasetSize, InputAttributes, ExpectedResults, trainingSetSize);
         }
